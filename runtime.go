@@ -3,6 +3,7 @@ package phoenix
 import (
 	"code.google.com/p/goconf/conf"
 	"golang.struktur.de/httputils"
+	"errors"
 	"log"
 	"net/http"
 	"time"
@@ -41,18 +42,16 @@ type Runtime interface {
 	// DefaultHTTPHandler specifies a handler which will be run
 	// using the default HTTP server configuration.
 	//
-	// Errors will be returned if the configuration is incorrect
-	// or potentially if binding the port fails.
-	//
-	// While it is not defined to do so, this call should be
-	// assumed to block until otherwise specified.
-	//
-	// It is also an error to call this function more then once.
-	DefaultHTTPHandler(http.Handler) error
+	// The results of calling this method after Start() has been
+	// called are undefined.
+	DefaultHTTPHandler(http.Handler)
+
+	// Start runs all registered servers and blocks until they terminate.
+	Start() error
 }
 
 type runtime struct {
-	runner *runner
+	*runner
 	*log.Logger
 	*conf.ConfigFile
 }
@@ -69,11 +68,12 @@ type callback struct {
 type runner struct {
 	runtime Runtime
 	callbacks []callback
+	server *httputils.Server
 	runFunc RunFunc
 }
 
 func newRunner(logger *log.Logger, configFile *conf.ConfigFile, runFunc RunFunc) *runner {
-	runner := &runner{nil, make([]callback, 0), runFunc}
+	runner := &runner{nil, make([]callback, 0), nil, runFunc}
 	runner.runtime = newRuntime(runner, logger, configFile)
 	return runner
 }
@@ -91,13 +91,6 @@ func (runner *runner) OnStop(stop stopFunc) {
 }
 
 func (runner *runner) Run() (err error) {
-	stopCallbacks := make([]callback, 0)
-	defer func() {
-		for _, cb := range stopCallbacks {
-			cb.stop(runner.runtime)
-		}
-	}()
-
 	defer func() {
 		if err != nil {
 			runner.runtime.Print(err)
@@ -105,25 +98,37 @@ func (runner *runner) Run() (err error) {
 	}()
 
 	err = runner.runFunc(runner.runtime)
-	if err != nil {
-		return
+	return
+}
+
+func (runner *runner) Start() error {
+	if runner.server == nil {
+		return errors.New("No HTTP server was registered")
 	}
 
+	stopCallbacks := make([]callback, 0)
+	defer func() {
+		for _, cb := range stopCallbacks {
+			cb.stop(runner.runtime)
+		}
+	}()
+
 	for _, cb := range runner.callbacks {
-		if err = cb.start(runner.runtime); err != nil {
-			return
+		if err := cb.start(runner.runtime); err != nil {
+			return err
 		} else {
 			stopCallbacks = append([]callback{cb}, stopCallbacks...)
 		}
 	}
-	return
+
+	return runner.server.ListenAndServe()
 }
 
 func newRuntime(runner *runner, logger *log.Logger, configFile *conf.ConfigFile) Runtime {
 	return &runtime{runner, logger, configFile}
 }
 
-func (runtime *runtime) DefaultHTTPHandler(handler http.Handler) error {
+func (runtime *runtime) DefaultHTTPHandler(handler http.Handler) {
 	listen, err := runtime.GetString("http", "listen")
 	if err != nil {
 		listen = "127.0.0.1:8080"
@@ -139,7 +144,7 @@ func (runtime *runtime) DefaultHTTPHandler(handler http.Handler) error {
 		writetimeout = 10
 	}
 
-	server := &httputils.Server{
+	runtime.runner.server = &httputils.Server{
 		Server: http.Server{
 			Addr:           listen,
 			Handler:        handler,
@@ -156,7 +161,6 @@ func (runtime *runtime) DefaultHTTPHandler(handler http.Handler) error {
 
 	runtime.runner.OnStart(func (r Runtime) error {
 		runtime.Printf("Starting HTTP server on %s", listen)
-		return server.ListenAndServe()
+		return nil
 	})
-	return nil
 }
