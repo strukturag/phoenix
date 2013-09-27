@@ -1,4 +1,10 @@
-phoenix (0.0.1) hardy; urgency=low
+phoenix (0.0.2) precise; urgency=low
+
+  * Breaking change: fix blocking portion of api.
+
+ -- Lance Cooper <lance@struktur.de>  Fri, 27 Sep 2013 15:23:40 +0200
+
+phoenix (0.0.1) precise; urgency=low
 
   * Initial release.
 
