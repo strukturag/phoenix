@@ -1,0 +1,16 @@
+#!/usr/bin/make -f
+
+#export DH_VERBOSE=1
+
+export DH_OPTIONS
+
+export DH_GOPKG := golang.struktur.de/phoenix
+TMPGOPATH = $(CURDIR)/debian/tmp/usr/share/gocode
+
+override_dh_auto_install:
+		mkdir -p ${TMPGOPATH}/src/${DH_GOPKG}
+# Copy all .go files to /usr/share/gocode (we compile and ship).
+		find . -path ./debian -prune -o -type f -name "*.go" -exec tar cf - {} + | (cd "${TMPGOPATH}/src/${DH_GOPKG}" && tar xvf -)
+
+%:
+		dh $@ --with=golang
