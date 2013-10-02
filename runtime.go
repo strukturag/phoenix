@@ -25,6 +25,17 @@ type Logger interface {
 	Printf(string, ...interface{})
 }
 
+// Metadata provides access to application information such as name and version.
+type Metadata interface {
+	// Name returns the the configured application name,
+	// or "app" if none was set.
+	Name() string
+
+	// Version returns the configured version string, 
+	// or "unreleased" if no version string was provided.
+	Version() string
+}
+
 // Container provides access to system data, configuration, and
 // logging.
 //
@@ -32,6 +43,7 @@ type Logger interface {
 type Container interface {
 	Config
 	Logger
+	Metadata
 }
 
 // Runtime provides application runtime support and
@@ -60,6 +72,7 @@ type callback struct {
 }
 
 type runtime struct {
+	name, version string
 	*log.Logger
 	*conf.ConfigFile
 	callbacks []callback
@@ -67,8 +80,8 @@ type runtime struct {
 	runFunc RunFunc
 }
 
-func newRuntime(logger *log.Logger, configFile *conf.ConfigFile, runFunc RunFunc) *runtime {
-	return &runtime{logger, configFile, make([]callback, 0), nil, runFunc}
+func newRuntime(name, version string, logger *log.Logger, configFile *conf.ConfigFile, runFunc RunFunc) *runtime {
+	return &runtime{name, version, logger, configFile, make([]callback, 0), nil, runFunc}
 }
 
 func (runtime *runtime) Callback(start startFunc, stop stopFunc) {
@@ -152,4 +165,18 @@ func (runtime *runtime) DefaultHTTPHandler(handler http.Handler) {
 		runtime.Printf("Starting HTTP server on %s", listen)
 		return nil
 	})
+}
+
+func (runtime *runtime) Name() string {
+	if runtime.name == "" {
+		return "app"
+	}
+	return runtime.name
+}
+
+func (runtime *runtime) Version() string {
+	if runtime.version == "" {
+		return "unreleased"
+	}
+	return runtime.version
 }

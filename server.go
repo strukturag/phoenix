@@ -44,7 +44,7 @@ type Server interface {
 }
 
 type server struct {
-	Name string
+	Name, Version string
 	configPath, logPath *string
 	cpuProfile, memProfile *string
 	Overrides *conf.ConfigFile
@@ -52,7 +52,7 @@ type server struct {
 
 // NewServer creates a Server instance with the given name and version string.
 func NewServer(name, version string) Server {
-	return &server{Name: name, Overrides: conf.NewConfigFile()}
+	return &server{Name: name, Version: version, Overrides: conf.NewConfigFile()}
 }
 
 func (server *server) OverrideOption(section, name, value string) Server {
@@ -115,7 +115,7 @@ func (server *server) Run(runFunc RunFunc) error {
 		}
 	}()
 
-	runtime := newRuntime(server.makeLogger(logwriter), configFile, runFunc)
+	runtime := newRuntime(server.Name, server.Version, server.makeLogger(logwriter), configFile, runFunc)
 
     if server.cpuProfile != nil && *server.cpuProfile != "" {
 		runtime.OnStart(func(runtime Runtime) error {
