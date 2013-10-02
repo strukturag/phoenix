@@ -50,12 +50,6 @@ type Runtime interface {
 	Start() error
 }
 
-type runtime struct {
-	*runner
-	*log.Logger
-	*conf.ConfigFile
-}
-
 type startFunc func(Runtime) error
 
 type stopFunc func(Runtime)
@@ -65,67 +59,62 @@ type callback struct {
 	stop stopFunc
 }
 
-type runner struct {
-	runtime Runtime
+type runtime struct {
+	*log.Logger
+	*conf.ConfigFile
 	callbacks []callback
 	server *httputils.Server
 	runFunc RunFunc
 }
 
-func newRunner(logger *log.Logger, configFile *conf.ConfigFile, runFunc RunFunc) *runner {
-	runner := &runner{nil, make([]callback, 0), nil, runFunc}
-	runner.runtime = newRuntime(runner, logger, configFile)
-	return runner
+func newRuntime(logger *log.Logger, configFile *conf.ConfigFile, runFunc RunFunc) *runtime {
+	return &runtime{logger, configFile, make([]callback, 0), nil, runFunc}
 }
 
-func (runner *runner) Callback(start startFunc, stop stopFunc) {
-	runner.callbacks = append(runner.callbacks, callback{start, stop})
+func (runtime *runtime) Callback(start startFunc, stop stopFunc) {
+	runtime.callbacks = append(runtime.callbacks, callback{start, stop})
 }
 
-func (runner *runner) OnStart(start startFunc) {
-	runner.Callback(start, func(_ Runtime) {})
+func (runtime *runtime) OnStart(start startFunc) {
+	runtime.Callback(start, func(_ Runtime) {})
 }
 
-func (runner *runner) OnStop(stop stopFunc) {
-	runner.Callback(func(_ Runtime) error {return nil}, stop)
+func (runtime *runtime) OnStop(stop stopFunc) {
+	runtime.Callback(func(_ Runtime) error {return nil}, stop)
 }
 
-func (runner *runner) Run() (err error) {
+func (runtime *runtime) Run() (err error) {
 	defer func() {
 		if err != nil {
-			runner.runtime.Print(err)
+			runtime.Print(err)
 		}
 	}()
 
-	err = runner.runFunc(runner.runtime)
+	err = runtime.runFunc(runtime)
 	return
 }
 
-func (runner *runner) Start() error {
-	if runner.server == nil {
+func (runtime *runtime) Start() error {
+	if runtime.server == nil {
 		return errors.New("No HTTP server was registered")
 	}
 
 	stopCallbacks := make([]callback, 0)
 	defer func() {
 		for _, cb := range stopCallbacks {
-			cb.stop(runner.runtime)
+			cb.stop(runtime)
 		}
 	}()
 
-	for _, cb := range runner.callbacks {
-		if err := cb.start(runner.runtime); err != nil {
+	for _, cb := range runtime.callbacks {
+		if err := cb.start(runtime); err != nil {
 			return err
 		} else {
 			stopCallbacks = append([]callback{cb}, stopCallbacks...)
 		}
 	}
 
-	return runner.server.ListenAndServe()
-}
-
-func newRuntime(runner *runner, logger *log.Logger, configFile *conf.ConfigFile) Runtime {
-	return &runtime{runner, logger, configFile}
+	return runtime.server.ListenAndServe()
 }
 
 func (runtime *runtime) DefaultHTTPHandler(handler http.Handler) {
@@ -144,7 +133,7 @@ func (runtime *runtime) DefaultHTTPHandler(handler http.Handler) {
 		writetimeout = 10
 	}
 
-	runtime.runner.server = &httputils.Server{
+	runtime.server = &httputils.Server{
 		Server: http.Server{
 			Addr:           listen,
 			Handler:        handler,
@@ -155,11 +144,11 @@ func (runtime *runtime) DefaultHTTPHandler(handler http.Handler) {
 		Logger: runtime.Logger,
 	}
 
-	runtime.runner.OnStop(func(runtime Runtime) {
+	runtime.OnStop(func(runtime Runtime) {
 		runtime.Print("Server shutdown.")
 	})
 
-	runtime.runner.OnStart(func (r Runtime) error {
+	runtime.OnStart(func (r Runtime) error {
 		runtime.Printf("Starting HTTP server on %s", listen)
 		return nil
 	})

@@ -115,10 +115,10 @@ func (server *server) Run(runFunc RunFunc) error {
 		}
 	}()
 
-	runner := newRunner(server.makeLogger(logwriter), configFile, runFunc)
+	runtime := newRuntime(server.makeLogger(logwriter), configFile, runFunc)
 
     if server.cpuProfile != nil && *server.cpuProfile != "" {
-		runner.OnStart(func(runtime Runtime) error {
+		runtime.OnStart(func(runtime Runtime) error {
 			cpuprofilepath := path.Clean(*server.cpuProfile)
 			runtime.Printf("Writing CPU profile to %s", cpuprofilepath)
 
@@ -129,7 +129,7 @@ func (server *server) Run(runFunc RunFunc) error {
 			return pprof.StartCPUProfile(f)
 		})
 
-		runner.OnStop(func(_ Runtime) {
+		runtime.OnStop(func(_ Runtime) {
 			pprof.StopCPUProfile()
 		})
     }
@@ -137,13 +137,13 @@ func (server *server) Run(runFunc RunFunc) error {
     if server.memProfile != nil && *server.memProfile != "" {
         memprofilepath := path.Clean(*server.memProfile)
 		var profileData io.WriteCloser
-		runner.OnStart(func(runtime Runtime) (err error) {
+		runtime.OnStart(func(runtime Runtime) (err error) {
 			runtime.Printf("A memory profile will be written to %s on exit.", memprofilepath)
 			profileData, err = os.Create(memprofilepath)
 			return
 		})
 
-        runner.OnStop(func(runtime Runtime) {
+        runtime.OnStop(func(runtime Runtime) {
 			runtime.Printf("Writing memory profile to %s", memprofilepath)
 			defer profileData.Close()
 			if err := pprof.Lookup("heap").WriteTo(profileData, 0); err != nil {
@@ -152,7 +152,7 @@ func (server *server) Run(runFunc RunFunc) error {
         })
     }
 
-	return runner.Run()
+	return runtime.Run()
 }
 
 func (server *server) loadConfig() (*conf.ConfigFile, error) {
