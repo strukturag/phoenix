@@ -1,3 +1,9 @@
+phoenix (0.0.3) precise; urgency=low
+
+  * Add ability to fetch app name and version strings.
+
+ -- Lance Cooper <lance@struktur.de>  Wed, 02 Oct 2013 11:34:43 +0200
+
 phoenix (0.0.2) precise; urgency=low
 
   * Breaking change: fix blocking portion of api.
