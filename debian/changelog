@@ -1,3 +1,9 @@
+phoenix (0.0.4) precise; urgency=low
+
+  * Fix build and installed dependencies.
+
+ -- Lance Cooper <lance@struktur.de>  Wed, 16 Oct 2013 11:28:11 -0500
+
 phoenix (0.0.3) precise; urgency=low
 
   * Add ability to fetch app name and version strings.
