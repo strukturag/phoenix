@@ -155,8 +155,16 @@ func (server *server) Run(runFunc RunFunc) error {
 	return runtime.Run()
 }
 
-func (server *server) loadConfig() (*conf.ConfigFile, error) {
-	mainConfig, err := conf.ReadConfigFile(*server.configPath)
+func (server *server) loadConfig() (mainConfig *conf.ConfigFile, err error) {
+	if server.configPath != nil {
+		mainConfig, err = conf.ReadConfigFile(*server.configPath)
+		if err != nil {
+			return
+		}
+	} else {
+		mainConfig = conf.NewConfigFile()
+	}
+
 	for _, section := range server.Overrides.GetSections() {
 		options, _ := server.Overrides.GetOptions(section)
 		for _, option := range options {
@@ -164,7 +172,7 @@ func (server *server) loadConfig() (*conf.ConfigFile, error) {
 			mainConfig.AddOption(section, option, value)
 		}
 	}
-	return mainConfig, err
+	return
 }
 
 func (server *server) makeLogger(w io.Writer) *log.Logger {
