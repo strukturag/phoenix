@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"path"
+	goruntime "runtime"
     "runtime/pprof"
      _ "net/http/pprof"
 )
@@ -80,9 +81,7 @@ func (server *server) MemProfile(path *string) Server {
 	return server
 }
 
-func (server *server) Run(runFunc RunFunc) error {
-	var err error
-
+func (server *server) Run(runFunc RunFunc) (err error) {
 	bootLogger := server.makeLogger(os.Stderr)
 
 	configFile, err := server.loadConfig()
@@ -108,14 +107,33 @@ func (server *server) Run(runFunc RunFunc) error {
 	// Set the core logging package to log to our logwriter.
 	server.setSystemLogger(logwriter)
 
+	// And create our internal logger instance.
+	logger := server.makeLogger(logwriter)
+
 	// Now that logging is started, install a panic handler.
 	defer func() {
 		if recovered := recover(); recovered != nil {
-			err = fmt.Errorf("PANIC: %v", recovered)
+			if panicedError, ok := recovered.(error); ok {
+				err = panicedError
+			} else {
+				err = fmt.Errorf("%v", recovered)
+			}
+
+			stackTrace := make([]byte, 1024)
+			for {
+				n := goruntime.Stack(stackTrace, false)
+				if n < len(stackTrace) {
+					stackTrace = stackTrace[0:n]
+					break
+				}
+				stackTrace = make([]byte, len(stackTrace)*2)
+			}
+
+			logger.Printf("%v\n%s", err, stackTrace)
 		}
 	}()
 
-	runtime := newRuntime(server.Name, server.Version, server.makeLogger(logwriter), configFile, runFunc)
+	runtime := newRuntime(server.Name, server.Version, logger, configFile, runFunc)
 
     if server.cpuProfile != nil && *server.cpuProfile != "" {
 		runtime.OnStart(func(runtime Runtime) error {
@@ -152,7 +170,8 @@ func (server *server) Run(runFunc RunFunc) error {
         })
     }
 
-	return runtime.Run()
+	err = runtime.Run()
+	return
 }
 
 func (server *server) loadConfig() (mainConfig *conf.ConfigFile, err error) {
