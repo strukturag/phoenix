@@ -1,3 +1,11 @@
+phoenix (0.0.6) precise; urgency=low
+
+  * Fix handling of panics during server startup.
+  * Add support for setting configuration defaults prior to
+    server startup.
+
+ -- Lance Cooper <lance@struktur.de>  Thu, 02 Jan 2014 17:06:25 -0600
+
 phoenix (0.0.5) precise; urgency=low
 
   * Fix exception on startup when no configfile was specified.
