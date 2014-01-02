@@ -17,10 +17,14 @@ type RunFunc func(Runtime) error
 
 // Server provides pre-startup configuration and application boot functionality.
 type Server interface {
+	// DefaultOption sets the default value of the named option in the given
+	// section.
+	DefaultOption(section, option, value string) Server
+
 	// OverrideOption forces the named option in the given section
 	// to have the given value regardless of it's state in the
 	// config file.
-	OverrideOption(section string, option string, value string) Server
+	OverrideOption(section, option, value string) Server
 
 	// Config sets the path to the application's main config file.
 	Config(path *string) Server
@@ -45,15 +49,26 @@ type Server interface {
 }
 
 type server struct {
-	Name, Version string
-	configPath, logPath *string
+	Name, Version          string
+	configPath, logPath    *string
 	cpuProfile, memProfile *string
-	Overrides *conf.ConfigFile
+	Defaults, Overrides    *conf.ConfigFile
 }
 
 // NewServer creates a Server instance with the given name and version string.
 func NewServer(name, version string) Server {
-	return &server{Name: name, Version: version, Overrides: conf.NewConfigFile()}
+	return &server{
+		Name: name,
+		Version: version,
+		Defaults: conf.NewConfigFile(),
+		Overrides: conf.NewConfigFile(),
+	}
+}
+
+
+func (server *server) DefaultOption(section, name, value string) Server {
+	server.Defaults.AddOption(section, name, value)
+	return server
 }
 
 func (server *server) OverrideOption(section, name, value string) Server {
@@ -182,6 +197,16 @@ func (server *server) loadConfig() (mainConfig *conf.ConfigFile, err error) {
 		}
 	} else {
 		mainConfig = conf.NewConfigFile()
+	}
+
+	for _, section := range server.Defaults.GetSections() {
+		options, _ := server.Defaults.GetOptions(section)
+		for _, option := range options {
+			if !mainConfig.HasOption(section, option) {
+				value, _ := server.Defaults.GetRawString(section, option)
+				mainConfig.AddOption(section, option, value)
+			}
+		}
 	}
 
 	for _, section := range server.Overrides.GetSections() {
