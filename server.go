@@ -9,11 +9,11 @@ import (
 	"fmt"
 	"io"
 	"log"
+	_ "net/http/pprof"
 	"os"
 	"path"
 	goruntime "runtime"
-    "runtime/pprof"
-     _ "net/http/pprof"
+	"runtime/pprof"
 )
 
 // RunFunc is the completion callback for server setup.
@@ -62,13 +62,12 @@ type server struct {
 // NewServer creates a Server instance with the given name and version string.
 func NewServer(name, version string) Server {
 	return &server{
-		Name: name,
-		Version: version,
-		Defaults: conf.NewConfigFile(),
+		Name:      name,
+		Version:   version,
+		Defaults:  conf.NewConfigFile(),
 		Overrides: conf.NewConfigFile(),
 	}
 }
-
 
 func (server *server) DefaultOption(section, name, value string) Server {
 	server.Defaults.AddOption(section, name, value)
@@ -154,7 +153,7 @@ func (server *server) Run(runFunc RunFunc) (err error) {
 
 	runtime := newRuntime(server.Name, server.Version, logger, configFile, runFunc)
 
-    if server.cpuProfile != nil && *server.cpuProfile != "" {
+	if server.cpuProfile != nil && *server.cpuProfile != "" {
 		runtime.OnStart(func(runtime Runtime) error {
 			cpuprofilepath := path.Clean(*server.cpuProfile)
 			runtime.Printf("Writing CPU profile to %s", cpuprofilepath)
@@ -169,10 +168,10 @@ func (server *server) Run(runFunc RunFunc) (err error) {
 		runtime.OnStop(func(_ Runtime) {
 			pprof.StopCPUProfile()
 		})
-    }
+	}
 
-    if server.memProfile != nil && *server.memProfile != "" {
-        memprofilepath := path.Clean(*server.memProfile)
+	if server.memProfile != nil && *server.memProfile != "" {
+		memprofilepath := path.Clean(*server.memProfile)
 		var profileData io.WriteCloser
 		runtime.OnStart(func(runtime Runtime) (err error) {
 			runtime.Printf("A memory profile will be written to %s on exit.", memprofilepath)
@@ -180,14 +179,14 @@ func (server *server) Run(runFunc RunFunc) (err error) {
 			return
 		})
 
-        runtime.OnStop(func(runtime Runtime) {
+		runtime.OnStop(func(runtime Runtime) {
 			runtime.Printf("Writing memory profile to %s", memprofilepath)
 			defer profileData.Close()
 			if err := pprof.Lookup("heap").WriteTo(profileData, 0); err != nil {
 				runtime.Printf("Failed to create memory profile: %v", err)
 			}
-        })
-    }
+		})
+	}
 
 	err = runtime.Run()
 	return
@@ -229,6 +228,6 @@ func (server *server) makeLogger(w io.Writer) *log.Logger {
 
 func (server *server) setSystemLogger(w io.Writer) {
 	log.SetOutput(w)
-	log.SetPrefix(server.Name+" ")
+	log.SetPrefix(server.Name + " ")
 	log.SetFlags(log.LstdFlags)
 }

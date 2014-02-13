@@ -6,8 +6,8 @@ package phoenix
 
 import (
 	"code.google.com/p/goconf/conf"
-	"golang.struktur.de/httputils"
 	"errors"
+	"golang.struktur.de/httputils"
 	"log"
 	"net/http"
 	"time"
@@ -35,7 +35,7 @@ type Metadata interface {
 	// or "app" if none was set.
 	Name() string
 
-	// Version returns the configured version string, 
+	// Version returns the configured version string,
 	// or "unreleased" if no version string was provided.
 	Version() string
 }
@@ -72,7 +72,7 @@ type stopFunc func(Runtime)
 
 type callback struct {
 	start startFunc
-	stop stopFunc
+	stop  stopFunc
 }
 
 type runtime struct {
@@ -80,8 +80,8 @@ type runtime struct {
 	*log.Logger
 	*conf.ConfigFile
 	callbacks []callback
-	server *httputils.Server
-	runFunc RunFunc
+	server    *httputils.Server
+	runFunc   RunFunc
 }
 
 func newRuntime(name, version string, logger *log.Logger, configFile *conf.ConfigFile, runFunc RunFunc) *runtime {
@@ -97,7 +97,7 @@ func (runtime *runtime) OnStart(start startFunc) {
 }
 
 func (runtime *runtime) OnStop(stop stopFunc) {
-	runtime.Callback(func(_ Runtime) error {return nil}, stop)
+	runtime.Callback(func(_ Runtime) error { return nil }, stop)
 }
 
 func (runtime *runtime) Run() (err error) {
@@ -165,7 +165,7 @@ func (runtime *runtime) DefaultHTTPHandler(handler http.Handler) {
 		runtime.Print("Server shutdown.")
 	})
 
-	runtime.OnStart(func (r Runtime) error {
+	runtime.OnStart(func(r Runtime) error {
 		runtime.Printf("Starting HTTP server on %s", listen)
 		return nil
 	})
