@@ -10,6 +10,8 @@ import (
 	"golang.struktur.de/httputils"
 	"log"
 	"net/http"
+	"strings"
+	"sync"
 	"time"
 )
 
@@ -80,7 +82,7 @@ type runtime struct {
 	*log.Logger
 	*conf.ConfigFile
 	callbacks []callback
-	server    *httputils.Server
+	servers   []*httputils.Server
 	runFunc   RunFunc
 }
 
@@ -112,7 +114,7 @@ func (runtime *runtime) Run() (err error) {
 }
 
 func (runtime *runtime) Start() error {
-	if runtime.server == nil {
+	if len(runtime.servers) == 0 {
 		return errors.New("No HTTP server was registered")
 	}
 
@@ -131,7 +133,37 @@ func (runtime *runtime) Start() error {
 		}
 	}
 
-	return runtime.server.ListenAndServe()
+	wg := &sync.WaitGroup{}
+	fail := make(chan error)
+
+	for _, server := range runtime.servers {
+		wg.Add(1)
+		go func(srv *httputils.Server) {
+			defer wg.Done()
+			err := srv.ListenAndServe()
+			if err != nil {
+				runtime.Printf("Error while listening %s\n", err)
+				fail <- err
+			}
+		}(server)
+	}
+
+	var err error
+	done := make(chan bool)
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		// All ok.
+	case err = <-fail:
+		// At least one has failed.
+		close(fail)
+	}
+
+	return err
 }
 
 func (runtime *runtime) DefaultHTTPHandler(handler http.Handler) {
@@ -150,25 +182,39 @@ func (runtime *runtime) DefaultHTTPHandler(handler http.Handler) {
 		writetimeout = 10
 	}
 
-	runtime.server = &httputils.Server{
-		Server: http.Server{
-			Addr:           listen,
-			Handler:        handler,
-			ReadTimeout:    time.Duration(readtimeout) * time.Second,
-			WriteTimeout:   time.Duration(writetimeout) * time.Second,
-			MaxHeaderBytes: 1 << 20,
-		},
-		Logger: runtime.Logger,
+	// Loop through each listen address, seperated by space
+	addresses := strings.Split(listen, " ")
+	runtime.servers = make([]*httputils.Server, 0)
+	for _, addr := range addresses {
+		addr = strings.TrimSpace(addr)
+		if len(addr) == 0 {
+			continue
+		}
+		server := &httputils.Server{
+			Server: http.Server{
+				Addr:           addr,
+				Handler:        handler,
+				ReadTimeout:    time.Duration(readtimeout) * time.Second,
+				WriteTimeout:   time.Duration(writetimeout) * time.Second,
+				MaxHeaderBytes: 1 << 20,
+			},
+			Logger: runtime.Logger,
+		}
+		runtime.servers = append(runtime.servers, server)
+
+		func(a string) {
+			runtime.OnStart(func(r Runtime) error {
+				r.Printf("Starting HTTP server on %s", a)
+				return nil
+			})
+		}(addr)
+
 	}
 
-	runtime.OnStop(func(runtime Runtime) {
-		runtime.Print("Server shutdown.")
+	runtime.OnStop(func(r Runtime) {
+		r.Print("Server shutdown.")
 	})
 
-	runtime.OnStart(func(r Runtime) error {
-		runtime.Printf("Starting HTTP server on %s", listen)
-		return nil
-	})
 }
 
 func (runtime *runtime) Name() string {
