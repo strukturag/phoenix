@@ -1,0 +1,13 @@
+# stats available at
+# https://travis-ci.org/strukturag/phoenix/
+language: go
+
+go:
+  - 1.1
+  - 1.2
+  - tip
+
+install:
+  - go get code.google.com/p/goconf/conf
+  - go get github.com/strukturag/httputils
+  - go get -d -v ./... && go build -v ./...
