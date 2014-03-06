@@ -7,7 +7,7 @@ package phoenix
 import (
 	"code.google.com/p/goconf/conf"
 	"errors"
-	"golang.struktur.de/httputils"
+	"github.com/strukturag/httputils"
 	"log"
 	"net/http"
 	"strings"
