@@ -6,6 +6,7 @@ package phoenix
 
 import (
 	"code.google.com/p/goconf/conf"
+	"crypto/tls"
 	"errors"
 	"github.com/strukturag/httputils"
 	"log"
@@ -62,7 +63,14 @@ type Runtime interface {
 	//
 	// The results of calling this method after Start() has been
 	// called are undefined.
-	DefaultHTTPHandler(http.Handler)
+	DefaultHTTPHandler(http.Handler) error
+
+	// DefaultHTTPSHandler specifies a handler which will be run
+	// using the default HTTPS server configuration.
+	//
+	// The results of calling this method after Start() has been
+	// called are undefined.
+	DefaultHTTPSHandler(http.Handler) error
 
 	// Start runs all registered servers and blocks until they terminate.
 	Start() error
@@ -81,13 +89,14 @@ type runtime struct {
 	name, version string
 	*log.Logger
 	*conf.ConfigFile
-	callbacks []callback
-	servers   []*httputils.Server
-	runFunc   RunFunc
+	callbacks  []callback
+	servers    []*httputils.Server
+	tlsServers []*httputils.Server
+	runFunc    RunFunc
 }
 
 func newRuntime(name, version string, logger *log.Logger, configFile *conf.ConfigFile, runFunc RunFunc) *runtime {
-	return &runtime{name, version, logger, configFile, make([]callback, 0), nil, runFunc}
+	return &runtime{name, version, logger, configFile, make([]callback, 0), nil, nil, runFunc}
 }
 
 func (runtime *runtime) Callback(start startFunc, stop stopFunc) {
@@ -114,8 +123,8 @@ func (runtime *runtime) Run() (err error) {
 }
 
 func (runtime *runtime) Start() error {
-	if len(runtime.servers) == 0 {
-		return errors.New("No HTTP server was registered")
+	if len(runtime.servers) == 0 && len(runtime.tlsServers) == 0 {
+		return errors.New("No servers were registered")
 	}
 
 	stopCallbacks := make([]callback, 0)
@@ -148,6 +157,18 @@ func (runtime *runtime) Start() error {
 		}(server)
 	}
 
+	for _, server := range runtime.tlsServers {
+		wg.Add(1)
+		go func(srv *httputils.Server) {
+			defer wg.Done()
+			err := srv.ListenAndServeTLSAdvanced()
+			if err != nil {
+				runtime.Printf("Error while listening %s\n", err)
+				fail <- err
+			}
+		}(server)
+	}
+
 	var err error
 	done := make(chan bool)
 	go func() {
@@ -166,7 +187,7 @@ func (runtime *runtime) Start() error {
 	return err
 }
 
-func (runtime *runtime) DefaultHTTPHandler(handler http.Handler) {
+func (runtime *runtime) DefaultHTTPHandler(handler http.Handler) error {
 	listen, err := runtime.GetString("http", "listen")
 	if err != nil {
 		listen = "127.0.0.1:8080"
@@ -182,7 +203,7 @@ func (runtime *runtime) DefaultHTTPHandler(handler http.Handler) {
 		writetimeout = 10
 	}
 
-	// Loop through each listen address, seperated by space
+	// Loop through each listen address, seperated by space.
 	addresses := strings.Split(listen, " ")
 	runtime.servers = make([]*httputils.Server, 0)
 	for _, addr := range addresses {
@@ -212,8 +233,116 @@ func (runtime *runtime) DefaultHTTPHandler(handler http.Handler) {
 	}
 
 	runtime.OnStop(func(r Runtime) {
-		r.Print("Server shutdown.")
+		r.Print("Server shutdown (HTTP).")
 	})
+
+	return nil
+
+}
+
+func (runtime *runtime) DefaultHTTPSHandler(handler http.Handler) error {
+	listen, err := runtime.GetString("https", "listen")
+	if err != nil {
+		// Do not create a HTTPS listener per default.
+		return nil
+	}
+
+	readtimeout, err := runtime.GetInt("https", "readtimeout")
+	if err != nil {
+		readtimeout = 10
+	}
+
+	writetimeout, err := runtime.GetInt("https", "writetimeout")
+	if err != nil {
+		writetimeout = 10
+	}
+
+	// Default to SSL3.
+	minVersion := tls.VersionSSL30
+	minVersionString, err := runtime.GetString("https", "minVersion")
+	if err == nil {
+		switch minVersionString {
+		case "TLSv1":
+			minVersion = tls.VersionTLS10
+		case "TLSv1.1":
+			minVersion = tls.VersionTLS11
+		case "TLSv1.2":
+			minVersion = tls.VersionTLS12
+		}
+	}
+
+	// Default cipher suites - no RC4.
+	cipherSuites := []uint16{
+		tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+		tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+		tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+		tls.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
+		tls.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
+		tls.TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA,
+		tls.TLS_RSA_WITH_AES_128_CBC_SHA,
+		tls.TLS_RSA_WITH_AES_256_CBC_SHA,
+		tls.TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA,
+		tls.TLS_RSA_WITH_3DES_EDE_CBC_SHA,
+	}
+
+	certFile, err := runtime.GetString("https", "certificate")
+	if err != nil {
+		return err
+	}
+
+	keyFile, err := runtime.GetString("https", "key")
+	if err != nil {
+		return err
+	}
+
+	certificates := make([]tls.Certificate, 1)
+	certificates[0], err = tls.LoadX509KeyPair(certFile, keyFile)
+	if err != nil {
+		return err
+	}
+
+	// Loop through each listen address, seperated by space.
+	addresses := strings.Split(listen, " ")
+	runtime.tlsServers = make([]*httputils.Server, 0)
+	for _, addr := range addresses {
+		addr = strings.TrimSpace(addr)
+		if len(addr) == 0 {
+			continue
+		}
+		// Create TLS config.
+		tlsConfig := &tls.Config{
+			PreferServerCipherSuites: true,
+			MinVersion:               uint16(minVersion),
+			CipherSuites:             cipherSuites,
+			Certificates:             certificates,
+		}
+		server := &httputils.Server{
+			Server: http.Server{
+				Addr:           addr,
+				Handler:        handler,
+				ReadTimeout:    time.Duration(readtimeout) * time.Second,
+				WriteTimeout:   time.Duration(writetimeout) * time.Second,
+				MaxHeaderBytes: 1 << 20,
+				TLSConfig:      tlsConfig,
+			},
+			Logger: runtime.Logger,
+		}
+		runtime.tlsServers = append(runtime.tlsServers, server)
+
+		func(a string) {
+			runtime.OnStart(func(r Runtime) error {
+				r.Printf("Starting HTTPS server on %s", a)
+				return nil
+			})
+		}(addr)
+
+	}
+
+	runtime.OnStop(func(r Runtime) {
+		r.Print("Server shutdown (HTTPS).")
+	})
+
+	return nil
 
 }
 
