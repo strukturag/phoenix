@@ -91,12 +91,11 @@ type runtime struct {
 	*conf.ConfigFile
 	callbacks  []callback
 	servers    []*httputils.Server
-	tlsServers []*httputils.Server
 	runFunc    RunFunc
 }
 
 func newRuntime(name, version string, logger *log.Logger, configFile *conf.ConfigFile, runFunc RunFunc) *runtime {
-	return &runtime{name, version, logger, configFile, make([]callback, 0), nil, nil, runFunc}
+	return &runtime{name, version, logger, configFile, make([]callback, 0), nil, runFunc}
 }
 
 func (runtime *runtime) Callback(start startFunc, stop stopFunc) {
@@ -123,7 +122,7 @@ func (runtime *runtime) Run() (err error) {
 }
 
 func (runtime *runtime) Start() error {
-	if len(runtime.servers) == 0 && len(runtime.tlsServers) == 0 {
+	if len(runtime.servers) == 0 {
 		return errors.New("No servers were registered")
 	}
 
@@ -149,19 +148,12 @@ func (runtime *runtime) Start() error {
 		wg.Add(1)
 		go func(srv *httputils.Server) {
 			defer wg.Done()
-			err := srv.ListenAndServe()
-			if err != nil {
-				runtime.Printf("Error while listening %s\n", err)
-				fail <- err
+			var err error
+			if srv.TLSConfig == nil {
+				err = srv.ListenAndServe()
+			} else {
+				err = srv.ListenAndServeTLSWithConfig(srv.TLSConfig)
 			}
-		}(server)
-	}
-
-	for _, server := range runtime.tlsServers {
-		wg.Add(1)
-		go func(srv *httputils.Server) {
-			defer wg.Done()
-			err := srv.ListenAndServeTLSWithConfig(srv.TLSConfig)
 			if err != nil {
 				runtime.Printf("Error while listening %s\n", err)
 				fail <- err
@@ -303,12 +295,13 @@ func (runtime *runtime) DefaultHTTPSHandler(handler http.Handler) error {
 
 	// Loop through each listen address, seperated by space.
 	addresses := strings.Split(listen, " ")
-	runtime.tlsServers = make([]*httputils.Server, 0)
 	for _, addr := range addresses {
+
 		addr = strings.TrimSpace(addr)
 		if len(addr) == 0 {
 			continue
 		}
+
 		// Create TLS config.
 		tlsConfig := &tls.Config{
 			PreferServerCipherSuites: true,
@@ -316,6 +309,8 @@ func (runtime *runtime) DefaultHTTPSHandler(handler http.Handler) error {
 			CipherSuites:             cipherSuites,
 			Certificates:             certificates,
 		}
+		tlsConfig.BuildNameToCertificate()
+		
 		server := &httputils.Server{
 			Server: http.Server{
 				Addr:           addr,
@@ -327,7 +322,7 @@ func (runtime *runtime) DefaultHTTPSHandler(handler http.Handler) error {
 			},
 			Logger: runtime.Logger,
 		}
-		runtime.tlsServers = append(runtime.tlsServers, server)
+		runtime.servers = append(runtime.servers, server)
 
 		func(a string) {
 			runtime.OnStart(func(r Runtime) error {
