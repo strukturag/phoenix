@@ -161,7 +161,7 @@ func (runtime *runtime) Start() error {
 		wg.Add(1)
 		go func(srv *httputils.Server) {
 			defer wg.Done()
-			err := srv.ListenAndServeTLSAdvanced()
+			err := srv.ListenAndServeTLSWithConfig(srv.TLSConfig)
 			if err != nil {
 				runtime.Printf("Error while listening %s\n", err)
 				fail <- err
