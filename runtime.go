@@ -295,34 +295,6 @@ func (runtime *runtime) Version() string {
 }
 
 func (runtime *runtime) loadTLSConfig(section string) (*tls.Config, error) {
-	// Default to SSL3.
-	minVersion := tls.VersionSSL30
-	minVersionString, err := runtime.GetString(section, "minVersion")
-	if err == nil {
-		switch minVersionString {
-		case "TLSv1":
-			minVersion = tls.VersionTLS10
-		case "TLSv1.1":
-			minVersion = tls.VersionTLS11
-		case "TLSv1.2":
-			minVersion = tls.VersionTLS12
-		}
-	}
-
-	// Default cipher suites - no RC4.
-	cipherSuites := []uint16{
-		tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
-		tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
-		tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
-		tls.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
-		tls.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
-		tls.TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA,
-		tls.TLS_RSA_WITH_AES_128_CBC_SHA,
-		tls.TLS_RSA_WITH_AES_256_CBC_SHA,
-		tls.TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA,
-		tls.TLS_RSA_WITH_3DES_EDE_CBC_SHA,
-	}
-
 	certFile, err := runtime.GetString(section, "certificate")
 	if err != nil {
 		return nil, err
@@ -342,10 +314,10 @@ func (runtime *runtime) loadTLSConfig(section string) (*tls.Config, error) {
 	// Create TLS config.
 	tlsConfig := &tls.Config{
 		PreferServerCipherSuites: true,
-		MinVersion:               uint16(minVersion),
-		CipherSuites:             cipherSuites,
+		CipherSuites:             makeDefaultCipherSuites(),
 		Certificates:             certificates,
 	}
+	setTLSMinVersion(runtime, "https", tlsConfig)
 	tlsConfig.BuildNameToCertificate()
 	return tlsConfig, nil
 }
