@@ -33,7 +33,7 @@ func withTestServer(t *testing.T, server phoenix.Server, runFunc phoenix.RunFunc
 	runTest()
 
 	if err := self.Signal(os.Interrupt); err == nil {
-		<- sig
+		<-sig
 	} else {
 		t.Fatalf("Failed to kill server, inconsistant state will result: %v", err)
 	}

@@ -1,9 +1,9 @@
 package phoenix_test
 
 import (
+	"crypto/tls"
 	"io/ioutil"
 	"net/http"
-	"crypto/tls"
 	"testing"
 
 	phoenix "."
@@ -34,7 +34,7 @@ func Test_Server_DefaultTLSServer_IsConnectableAfterStartup(t *testing.T) {
 			},
 		}
 
-		resp, err := client.Get("https://"+baseURL+"/")
+		resp, err := client.Get("https://" + baseURL + "/")
 		if err != nil {
 			t.Errorf("unexpected error making HTTP request: %v", err)
 		}
