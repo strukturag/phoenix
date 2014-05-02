@@ -72,6 +72,20 @@ type Runtime interface {
 	// called are undefined.
 	DefaultHTTPSHandler(http.Handler)
 
+	// TLSConfig returns the current tls.Config used with HTTPS
+	// servers. If no tls.Config is set, it is created using the
+	// the options provied in configuration. Modifications to
+	// the tls.Config are propagated to existing HTTPS servers.
+	//
+	// Results of modifying the tls.Config after Start() has been
+	// called are undefined.
+	TLSConfig() (*tls.Config, error)
+
+	// SetTLSConfig applies a given tls.Config to the runtime. It
+	// will be used with all HTTPS servers created after SetTLSConfig
+	// was called.
+	SetTLSConfig(*tls.Config)
+
 	// Start runs all registered servers and blocks until they terminate.
 	Start() error
 }
@@ -91,11 +105,12 @@ type runtime struct {
 	*conf.ConfigFile
 	callbacks []callback
 	servers   []*httputils.Server
+	tlsConfig *tls.Config
 	runFunc   RunFunc
 }
 
 func newRuntime(name, version string, logger *log.Logger, configFile *conf.ConfigFile, runFunc RunFunc) *runtime {
-	return &runtime{name, version, logger, configFile, make([]callback, 0), nil, runFunc}
+	return &runtime{name, version, logger, configFile, make([]callback, 0), nil, nil, runFunc}
 }
 
 func (runtime *runtime) Callback(start startFunc, stop stopFunc) {
@@ -119,6 +134,18 @@ func (runtime *runtime) Run() (err error) {
 
 	err = runtime.runFunc(runtime)
 	return
+}
+
+func (runtime *runtime) TLSConfig() (*tls.Config, error) {
+	var err error
+	if runtime.tlsConfig == nil {
+		runtime.tlsConfig, err = runtime.loadTLSConfig("https")
+	}
+	return runtime.tlsConfig, err
+}
+
+func (runtime *runtime) SetTLSConfig(tlsConfig *tls.Config) {
+	runtime.tlsConfig = tlsConfig
 }
 
 func (runtime *runtime) Start() error {
@@ -246,6 +273,16 @@ func (runtime *runtime) DefaultHTTPSHandler(handler http.Handler) {
 		writetimeout = 10
 	}
 
+	if runtime.tlsConfig == nil {
+		runtime.tlsConfig, err = runtime.loadTLSConfig("https")
+		if err != nil {
+			runtime.OnStart(func(r Runtime) error {
+				return err
+			})
+			return
+		}
+	}
+
 	// Loop through each listen address, seperated by space
 	addresses := strings.Split(listen, " ")
 	for _, addr := range addresses {
@@ -261,16 +298,16 @@ func (runtime *runtime) DefaultHTTPSHandler(handler http.Handler) {
 				ReadTimeout:    time.Duration(readtimeout) * time.Second,
 				WriteTimeout:   time.Duration(writetimeout) * time.Second,
 				MaxHeaderBytes: 1 << 20,
+				TLSConfig:      runtime.tlsConfig,
 			},
 			Logger: runtime.Logger,
 		}
 		runtime.servers = append(runtime.servers, server)
 
 		func(a string) {
-			runtime.OnStart(func(r Runtime) (err error) {
+			runtime.OnStart(func(r Runtime) error {
 				r.Printf("Starting HTTPS server on %s", a)
-				server.TLSConfig, err = runtime.loadTLSConfig("https")
-				return
+				return nil
 			})
 		}(addr)
 	}
