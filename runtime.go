@@ -72,13 +72,13 @@ type Runtime interface {
 	// called are undefined.
 	DefaultHTTPSHandler(http.Handler)
 
-	// TLSConfig returns the current tls.Config used with HTTPS
-	// servers. If no tls.Config is set, it is created using the
-	// the options provied in configuration. Modifications to
-	// the tls.Config are propagated to existing HTTPS servers.
+	// TLSConfig returns the current tls.Config used with HTTPS servers
+	// If no tls.Config is set, it is created using the options provided in
+	// configuration. Modifications to the tls.Config the tls.Config are
+	// propagated to existing HTTPS servers.
 	//
-	// Results of modifying the tls.Config after Start() has been
-	// called are undefined.
+	// Results of modifying the tls.Config after Start() has been called are
+	// undefined.
 	TLSConfig() (*tls.Config, error)
 
 	// SetTLSConfig applies a given tls.Config to the runtime. It
