@@ -1,3 +1,10 @@
+phoenix (0.11.0) precise; urgency=low
+
+  * Added HTTPS support.
+  * Polished code and docs. Phoenix is now considered stable.
+
+ -- Simon Eisenmann <simon@struktur.de>  Tue, 06 May 2014 09:46:57 +0200
+
 phoenix (0.1.0) precise; urgency=low
 
   * Initial public release. 
