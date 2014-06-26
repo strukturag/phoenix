@@ -164,7 +164,7 @@ func (runtime *runtime) Run() (err error) {
 func (runtime *runtime) TLSConfig() (*tls.Config, error) {
 	var err error
 	if runtime.tlsConfig == nil {
-		runtime.tlsConfig, err = runtime.loadTLSConfig("https")
+		runtime.tlsConfig, err = loadTLSConfig(runtime, "https")
 	}
 	return runtime.tlsConfig, err
 }
@@ -226,17 +226,14 @@ func (runtime *runtime) appendHTTPServices(section string, handler http.Handler,
 	}
 
 	var tlsConfig *tls.Config
-	if useTLS {
-		if runtime.tlsConfig == nil {
-			runtime.tlsConfig, err = runtime.loadTLSConfig(section)
-			if err != nil {
-				runtime.OnStart(func(r Runtime) error {
-					return err
-				})
-				return
-			}
+	if section == "https" {
+		tlsConfig, err = runtime.TLSConfig()
+		if err != nil {
+			runtime.OnStart(func(r Runtime) error {
+				return err
+			})
+			return
 		}
-		tlsConfig = runtime.tlsConfig
 	}
 
 	// Loop through each listen address, seperated by space
@@ -263,32 +260,4 @@ func (runtime *runtime) Version() string {
 		return "unreleased"
 	}
 	return runtime.version
-}
-
-func (runtime *runtime) loadTLSConfig(section string) (*tls.Config, error) {
-	certFile, err := runtime.GetString(section, "certificate")
-	if err != nil {
-		return nil, err
-	}
-
-	keyFile, err := runtime.GetString(section, "key")
-	if err != nil {
-		return nil, err
-	}
-
-	certificates := make([]tls.Certificate, 1)
-	certificates[0], err = tls.LoadX509KeyPair(certFile, keyFile)
-	if err != nil {
-		return nil, err
-	}
-
-	// Create TLS config.
-	tlsConfig := &tls.Config{
-		PreferServerCipherSuites: true,
-		CipherSuites:             makeDefaultCipherSuites(),
-		Certificates:             certificates,
-	}
-	setTLSMinVersion(runtime, "https", tlsConfig)
-	tlsConfig.BuildNameToCertificate()
-	return tlsConfig, nil
 }
