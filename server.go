@@ -159,7 +159,8 @@ func (server *server) Run(runFunc RunFunc) (err error) {
 		}
 	}()
 
-	runtime := newRuntime(server.Name, server.Version, logger, configFile, runFunc)
+	container := newContainer(server.Name, server.Version, logger, configFile)
+	runtime := newRuntime(container, runFunc)
 
 	if server.cpuProfile != nil && *server.cpuProfile != "" {
 		runtime.OnStart(func(runtime Runtime) error {

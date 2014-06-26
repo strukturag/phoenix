@@ -5,7 +5,6 @@
 package phoenix
 
 import (
-	"code.google.com/p/goconf/conf"
 	"crypto/tls"
 	"log"
 	"net/http"
@@ -14,43 +13,6 @@ import (
 	"strings"
 	"syscall"
 )
-
-// Config provides read access to the application's configuration.
-type Config interface {
-	GetBool(section string, option string) (bool, error)
-	GetInt(section string, option string) (int, error)
-	GetString(section string, option string) (string, error)
-}
-
-// Logger provides a log-only interface to the application Logger.
-//
-// Presently only methods for logging at the default (debug) level
-// are provided, this may change in the future.
-type Logger interface {
-	Print(...interface{})
-	Printf(string, ...interface{})
-}
-
-// Metadata provides access to application information such as name and version.
-type Metadata interface {
-	// Name returns the the configured application name,
-	// or "app" if none was set.
-	Name() string
-
-	// Version returns the configured version string,
-	// or "unreleased" if no version string was provided.
-	Version() string
-}
-
-// Container provides access to system data, configuration, and
-// logging.
-//
-// Typically subinterfaces should be used when possible.
-type Container interface {
-	Config
-	Logger
-	Metadata
-}
 
 // Runtime provides application runtime support and
 // server process launch functionality.
@@ -102,27 +64,22 @@ type callback struct {
 }
 
 type runtime struct {
-	name, version string
-	*log.Logger
-	*conf.ConfigFile
 	*serviceManager
 	callbacks []callback
 	tlsConfig *tls.Config
 	runFunc   RunFunc
+	rawLogger *log.Logger
 }
 
-func newRuntime(name, version string, logger *log.Logger, configFile *conf.ConfigFile, runFunc RunFunc) *runtime {
+func newRuntime(container *container, runFunc RunFunc) *runtime {
 	runtime := &runtime{
-		name,
-		version,
-		logger,
-		configFile,
-		nil,
+		newServiceManager(container),
 		make([]callback, 0),
 		nil,
 		runFunc,
+		container.Logger,
 	}
-	runtime.serviceManager = newServiceManager(runtime)
+
 	return runtime
 }
 
@@ -244,20 +201,6 @@ func (runtime *runtime) appendHTTPServices(section string, handler http.Handler,
 			continue
 		}
 
-		runtime.Service(newHTTPService(runtime.Logger, handler, addr, readtimeout, writetimeout, tlsConfig))
+		runtime.Service(newHTTPService(runtime.rawLogger, handler, addr, readtimeout, writetimeout, tlsConfig))
 	}
-}
-
-func (runtime *runtime) Name() string {
-	if runtime.name == "" {
-		return "app"
-	}
-	return runtime.name
-}
-
-func (runtime *runtime) Version() string {
-	if runtime.version == "" {
-		return "unreleased"
-	}
-	return runtime.version
 }
