@@ -7,13 +7,12 @@ package phoenix
 import (
 	"code.google.com/p/goconf/conf"
 	"crypto/tls"
-	"errors"
-	"github.com/strukturag/httputils"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
 	"strings"
-	"sync"
-	"time"
+	"syscall"
 )
 
 // Config provides read access to the application's configuration.
@@ -57,6 +56,9 @@ type Container interface {
 // server process launch functionality.
 type Runtime interface {
 	Container
+
+	// Service specifies a Service to be managed by this runtime.
+	Service(Service)
 
 	// DefaultHTTPHandler specifies a handler which will be run
 	// using the default HTTP server configuration.
@@ -103,14 +105,25 @@ type runtime struct {
 	name, version string
 	*log.Logger
 	*conf.ConfigFile
+	*serviceManager
 	callbacks []callback
-	servers   []*httputils.Server
 	tlsConfig *tls.Config
 	runFunc   RunFunc
 }
 
 func newRuntime(name, version string, logger *log.Logger, configFile *conf.ConfigFile, runFunc RunFunc) *runtime {
-	return &runtime{name, version, logger, configFile, make([]callback, 0), nil, nil, runFunc}
+	runtime := &runtime{
+		name,
+		version,
+		logger,
+		configFile,
+		nil,
+		make([]callback, 0),
+		nil,
+		runFunc,
+	}
+	runtime.serviceManager = newServiceManager(runtime)
+	return runtime
 }
 
 func (runtime *runtime) Callback(start startFunc, stop stopFunc) {
@@ -132,6 +145,18 @@ func (runtime *runtime) Run() (err error) {
 		}
 	}()
 
+	sig := make(chan os.Signal, 2)
+	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(sig)
+
+	go func() {
+		s := <-sig
+		runtime.Printf("Got signal %d, stopping all services", s)
+		if err = runtime.Stop(); err != nil {
+			runtime.Printf("Error stopping server: %v", err)
+		}
+	}()
+
 	err = runtime.runFunc(runtime)
 	return
 }
@@ -149,10 +174,6 @@ func (runtime *runtime) SetTLSConfig(tlsConfig *tls.Config) {
 }
 
 func (runtime *runtime) Start() error {
-	if len(runtime.servers) == 0 {
-		return errors.New("No servers were registered")
-	}
-
 	stopCallbacks := make([]callback, 0)
 	defer func() {
 		for _, cb := range stopCallbacks {
@@ -168,119 +189,54 @@ func (runtime *runtime) Start() error {
 		}
 	}
 
-	wg := &sync.WaitGroup{}
-	fail := make(chan error)
+	return runtime.serviceManager.Start()
+}
 
-	for _, server := range runtime.servers {
-		wg.Add(1)
-		go func(srv *httputils.Server) {
-			defer wg.Done()
-			var err error
-			if srv.TLSConfig == nil {
-				err = srv.ListenAndServe()
-			} else {
-				err = srv.ListenAndServeTLSWithConfig(srv.TLSConfig)
-			}
-			if err != nil {
-				runtime.Printf("Error while listening %s\n", err)
-				fail <- err
-			}
-		}(server)
-	}
-
-	var err error
-	done := make(chan bool)
-	go func() {
-		wg.Wait()
-		close(done)
-	}()
-
-	select {
-	case <-done:
-		// All ok.
-	case err = <-fail:
-		// At least one has failed.
-		close(fail)
-	}
-
-	return err
+func (runtime *runtime) Service(service Service) {
+	runtime.AddService(service)
 }
 
 func (runtime *runtime) DefaultHTTPHandler(handler http.Handler) {
-	listen, err := runtime.GetString("http", "listen")
-	if err != nil {
-		listen = "127.0.0.1:8080"
-	}
-
-	readtimeout, err := runtime.GetInt("http", "readtimeout")
-	if err != nil {
-		readtimeout = 10
-	}
-
-	writetimeout, err := runtime.GetInt("http", "writetimeout")
-	if err != nil {
-		writetimeout = 10
-	}
-
-	// Loop through each listen address, seperated by space
-	addresses := strings.Split(listen, " ")
-	runtime.servers = make([]*httputils.Server, 0)
-	for _, addr := range addresses {
-		addr = strings.TrimSpace(addr)
-		if len(addr) == 0 {
-			continue
-		}
-		server := &httputils.Server{
-			Server: http.Server{
-				Addr:           addr,
-				Handler:        handler,
-				ReadTimeout:    time.Duration(readtimeout) * time.Second,
-				WriteTimeout:   time.Duration(writetimeout) * time.Second,
-				MaxHeaderBytes: 1 << 20,
-			},
-			Logger: runtime.Logger,
-		}
-		runtime.servers = append(runtime.servers, server)
-
-		func(a string) {
-			runtime.OnStart(func(r Runtime) error {
-				r.Printf("Starting HTTP server on %s", a)
-				return nil
-			})
-		}(addr)
-
-	}
-
-	runtime.OnStop(func(r Runtime) {
-		r.Print("Server shutdown (HTTP).")
-	})
+	runtime.appendHTTPServices("http", handler, false)
 }
 
 func (runtime *runtime) DefaultHTTPSHandler(handler http.Handler) {
-	listen, err := runtime.GetString("https", "listen")
+	runtime.appendHTTPServices("https", handler, true)
+}
+
+func (runtime *runtime) appendHTTPServices(section string, handler http.Handler, useTLS bool) {
+	listen, err := runtime.GetString(section, "listen")
 	if err != nil {
-		// Do not create a HTTPS listener per default.
-		return
+		if section != "http" {
+			// Only the non-TLS default service has a default listen address.
+			return
+		}
+
+		listen = "127.0.0.1:8080"
 	}
 
-	readtimeout, err := runtime.GetInt("https", "readtimeout")
+	readtimeout, err := runtime.GetInt(section, "readtimeout")
 	if err != nil {
 		readtimeout = 10
 	}
 
-	writetimeout, err := runtime.GetInt("https", "writetimeout")
+	writetimeout, err := runtime.GetInt(section, "writetimeout")
 	if err != nil {
 		writetimeout = 10
 	}
 
-	if runtime.tlsConfig == nil {
-		runtime.tlsConfig, err = runtime.loadTLSConfig("https")
-		if err != nil {
-			runtime.OnStart(func(r Runtime) error {
-				return err
-			})
-			return
+	var tlsConfig *tls.Config
+	if useTLS {
+		if runtime.tlsConfig == nil {
+			runtime.tlsConfig, err = runtime.loadTLSConfig(section)
+			if err != nil {
+				runtime.OnStart(func(r Runtime) error {
+					return err
+				})
+				return
+			}
 		}
+		tlsConfig = runtime.tlsConfig
 	}
 
 	// Loop through each listen address, seperated by space
@@ -291,30 +247,8 @@ func (runtime *runtime) DefaultHTTPSHandler(handler http.Handler) {
 			continue
 		}
 
-		server := &httputils.Server{
-			Server: http.Server{
-				Addr:           addr,
-				Handler:        handler,
-				ReadTimeout:    time.Duration(readtimeout) * time.Second,
-				WriteTimeout:   time.Duration(writetimeout) * time.Second,
-				MaxHeaderBytes: 1 << 20,
-				TLSConfig:      runtime.tlsConfig,
-			},
-			Logger: runtime.Logger,
-		}
-		runtime.servers = append(runtime.servers, server)
-
-		func(a string) {
-			runtime.OnStart(func(r Runtime) error {
-				r.Printf("Starting HTTPS server on %s", a)
-				return nil
-			})
-		}(addr)
+		runtime.Service(newHTTPService(runtime.Logger, handler, addr, readtimeout, writetimeout, tlsConfig))
 	}
-
-	runtime.OnStop(func(r Runtime) {
-		r.Print("Server shutdown (HTTPS).")
-	})
 }
 
 func (runtime *runtime) Name() string {

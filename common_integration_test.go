@@ -34,6 +34,9 @@ func withTestServer(t *testing.T, server phoenix.Server, runFunc phoenix.RunFunc
 
 	if err := self.Signal(os.Interrupt); err == nil {
 		<-sig
+		// NOTE(lcooper): Yield the test goroutine while the signal gets delivered
+		// elsewhere, otherwise the server doesn't shut down cleanly.
+		time.Sleep(1 * time.Millisecond)
 	} else {
 		t.Fatalf("Failed to kill server, inconsistant state will result: %v", err)
 	}

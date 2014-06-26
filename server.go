@@ -50,6 +50,9 @@ type Server interface {
 	// Any errors resulting from loading the configuration or opening the log
 	// will be returned without calling runner.
 	Run(runner RunFunc) error
+
+	// Stop forcibly halts the running instance.
+	Stop() error
 }
 
 type server struct {
@@ -57,6 +60,7 @@ type server struct {
 	configPath, logPath    *string
 	cpuProfile, memProfile *string
 	Defaults, Overrides    *conf.ConfigFile
+	currentRuntime         *runtime
 }
 
 // NewServer creates a Server instance with the given name and version string.
@@ -100,6 +104,10 @@ func (server *server) MemProfile(path *string) Server {
 }
 
 func (server *server) Run(runFunc RunFunc) (err error) {
+	if server.currentRuntime != nil {
+		return fmt.Errorf("Server is already running")
+	}
+
 	bootLogger := server.makeLogger(os.Stderr)
 
 	configFile, err := server.loadConfig()
@@ -188,8 +196,21 @@ func (server *server) Run(runFunc RunFunc) (err error) {
 		})
 	}
 
-	err = runtime.Run()
+	server.currentRuntime = runtime
+
+	err = server.currentRuntime.Run()
 	return
+}
+
+func (server *server) Stop() error {
+	if server.currentRuntime == nil {
+		return fmt.Errorf("Server is not currently running")
+	}
+
+	err := server.currentRuntime.Stop()
+	server.currentRuntime = nil
+
+	return err
 }
 
 func (server *server) loadConfig() (mainConfig *conf.ConfigFile, err error) {
