@@ -24,6 +24,15 @@ type Service interface {
 	Stop() error
 }
 
+// Reloadable should be implemented by services which wish to respond to
+// configuration reload requests.
+type Reloadable interface {
+	// Reload will be called when the server's configuration has been reloaded.
+	//
+	// If any reloadable service returns an error, the server will be stopped.
+	Reload() error
+}
+
 // startHandler shall be considered undocumented until further notice.
 type startHandler interface {
 	OnStart(Container) error
@@ -35,11 +44,11 @@ type stopHandler interface {
 }
 
 type serviceManager struct {
-	Container
+	*container
 	services []Service
 }
 
-func newServiceManager(container Container) *serviceManager {
+func newServiceManager(container *container) *serviceManager {
 	return &serviceManager{
 		container,
 		make([]Service, 0, 1),
@@ -97,8 +106,24 @@ func (manager *serviceManager) Start() error {
 	return err
 }
 
+func (manager *serviceManager) Reload() error {
+	if err := manager.config.load(); err != nil {
+		return err
+	}
+
+	failedToReload := &multiError{}
+	manager.Printf("Reloading configuration")
+	for _, service := range manager.services {
+		if reloadable, ok := service.(Reloadable); ok {
+			failedToReload.AddError(reloadable.Reload())
+		}
+	}
+
+	return failedToReload.AsError()
+}
+
 func (manager *serviceManager) Stop() error {
-	faults := &stopError{}
+	faults := &multiError{}
 	stopping := sync.WaitGroup{}
 	for _, service := range manager.services {
 		fault := make(chan error, 1)
@@ -137,12 +162,12 @@ func (manager *serviceManager) awaitStop(service Service) error {
 	}
 }
 
-type stopError struct {
+type multiError struct {
 	sync.Mutex
 	errors []error
 }
 
-func (stop *stopError) AddError(err error) {
+func (stop *multiError) AddError(err error) {
 	if err != nil {
 		stop.Lock()
 		defer stop.Unlock()
@@ -150,7 +175,7 @@ func (stop *stopError) AddError(err error) {
 	}
 }
 
-func (stop *stopError) Error() string {
+func (stop *multiError) Error() string {
 	stop.Lock()
 	defer stop.Unlock()
 
@@ -161,7 +186,7 @@ func (stop *stopError) Error() string {
 	return strings.Join(msgs, "\n")
 }
 
-func (stop *stopError) AsError() error {
+func (stop *multiError) AsError() error {
 	stop.Lock()
 	defer stop.Unlock()
 

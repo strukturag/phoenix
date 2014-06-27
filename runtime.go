@@ -102,15 +102,24 @@ func (runtime *runtime) Run() (err error) {
 		}
 	}()
 
-	sig := make(chan os.Signal, 2)
-	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
+	sig := make(chan os.Signal, 3)
+	signal.Notify(sig, os.Interrupt, syscall.SIGTERM, syscall.SIGHUP)
 	defer signal.Stop(sig)
 
 	go func() {
-		s := <-sig
-		runtime.Printf("Got signal %d, stopping all services", s)
-		if err = runtime.Stop(); err != nil {
-			runtime.Printf("Error stopping server: %v", err)
+	Loop:
+		for s := range sig {
+			switch s {
+			case os.Interrupt, syscall.SIGTERM:
+				runtime.Printf("Got signal %d, stopping all services", s)
+				runtime.Stop()
+				break Loop
+			case syscall.SIGHUP:
+				if err := runtime.Reload(); err != nil {
+					runtime.Printf("Error reloading services: %v", err)
+					runtime.Stop()
+				}
+			}
 		}
 	}()
 
@@ -147,6 +156,13 @@ func (runtime *runtime) Start() error {
 	}
 
 	return runtime.serviceManager.Start()
+}
+
+func (runtime *runtime) Stop() (err error) {
+	if err = runtime.serviceManager.Stop(); err != nil {
+		runtime.Printf("Error stopping server: %v", err)
+	}
+	return
 }
 
 func (runtime *runtime) Service(service Service) {

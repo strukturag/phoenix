@@ -5,10 +5,8 @@
 package phoenix
 
 import (
-	"code.google.com/p/goconf/conf"
 	"fmt"
 	"io"
-	"log"
 	_ "net/http/pprof"
 	"os"
 	"path"
@@ -57,34 +55,33 @@ type Server interface {
 
 type server struct {
 	Name, Version          string
-	configPath, logPath    *string
+	logPath *string
 	cpuProfile, memProfile *string
-	Defaults, Overrides    *conf.ConfigFile
 	currentRuntime         *runtime
+	*config
 }
 
 // NewServer creates a Server instance with the given name and version string.
 func NewServer(name, version string) Server {
 	return &server{
-		Name:      name,
-		Version:   version,
-		Defaults:  conf.NewConfigFile(),
-		Overrides: conf.NewConfigFile(),
+		Name:    name,
+		Version: version,
+		config:  newConfig(),
 	}
 }
 
 func (server *server) DefaultOption(section, name, value string) Server {
-	server.Defaults.AddOption(section, name, value)
+	server.config.DefaultOption(section, name, value)
 	return server
 }
 
 func (server *server) OverrideOption(section, name, value string) Server {
-	server.Overrides.AddOption(section, name, value)
+	server.config.OverrideOption(section, name, value)
 	return server
 }
 
 func (server *server) Config(path *string) Server {
-	server.configPath = path
+	server.config.SetPath(*path)
 	return server
 }
 
@@ -108,33 +105,12 @@ func (server *server) Run(runFunc RunFunc) (err error) {
 		return fmt.Errorf("Server is already running")
 	}
 
-	bootLogger := server.makeLogger(os.Stderr)
-
-	configFile, err := server.loadConfig()
+	container, err := newContainer(server.Name, server.Version, server.logPath, server.config)
 	if err != nil {
-		bootLogger.Printf("Failed to load configuration file: %v", err)
+		makeLogger(server.Name, os.Stderr).Print(err)
 		return err
 	}
-
-	var logfile string
-	if server.logPath == nil || *server.logPath == "" {
-		logfile, err = configFile.GetString("log", "logfile")
-	} else {
-		logfile = *server.logPath
-	}
-
-	logwriter, err := openLogWriter(logfile)
-	if err != nil {
-		bootLogger.Printf("Unable to open log file: %s", err)
-		return err
-	}
-	defer logwriter.Close()
-
-	// Set the core logging package to log to our logwriter.
-	server.setSystemLogger(logwriter)
-
-	// And create our internal logger instance.
-	logger := server.makeLogger(logwriter)
+	defer container.Close()
 
 	// Now that logging is started, install a panic handler.
 	defer func() {
@@ -155,11 +131,10 @@ func (server *server) Run(runFunc RunFunc) (err error) {
 				stackTrace = make([]byte, len(stackTrace)*2)
 			}
 
-			logger.Printf("%v\n%s", err, stackTrace)
+			container.Printf("%v\n%s", err, stackTrace)
 		}
 	}()
 
-	container := newContainer(server.Name, server.Version, logger, configFile)
 	runtime := newRuntime(container, runFunc)
 
 	if server.cpuProfile != nil && *server.cpuProfile != "" {
@@ -212,44 +187,4 @@ func (server *server) Stop() error {
 	server.currentRuntime = nil
 
 	return err
-}
-
-func (server *server) loadConfig() (mainConfig *conf.ConfigFile, err error) {
-	if server.configPath != nil {
-		mainConfig, err = conf.ReadConfigFile(*server.configPath)
-		if err != nil {
-			return
-		}
-	} else {
-		mainConfig = conf.NewConfigFile()
-	}
-
-	for _, section := range server.Defaults.GetSections() {
-		options, _ := server.Defaults.GetOptions(section)
-		for _, option := range options {
-			if !mainConfig.HasOption(section, option) {
-				value, _ := server.Defaults.GetRawString(section, option)
-				mainConfig.AddOption(section, option, value)
-			}
-		}
-	}
-
-	for _, section := range server.Overrides.GetSections() {
-		options, _ := server.Overrides.GetOptions(section)
-		for _, option := range options {
-			value, _ := server.Overrides.GetRawString(section, option)
-			mainConfig.AddOption(section, option, value)
-		}
-	}
-	return
-}
-
-func (server *server) makeLogger(w io.Writer) *log.Logger {
-	return log.New(w, server.Name+" ", log.LstdFlags)
-}
-
-func (server *server) setSystemLogger(w io.Writer) {
-	log.SetOutput(w)
-	log.SetPrefix(server.Name + " ")
-	log.SetFlags(log.LstdFlags)
 }

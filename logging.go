@@ -6,10 +6,22 @@ package phoenix
 
 import (
 	"io"
+	"log"
 	"os"
 	"path"
 	"sync"
 )
+
+
+func makeLogger(name string, w io.Writer) *log.Logger {
+	return log.New(w, name+" ", log.LstdFlags)
+}
+
+func setSystemLogger(name string, w io.Writer) {
+	log.SetOutput(w)
+	log.SetPrefix(name + " ")
+	log.SetFlags(log.LstdFlags)
+}
 
 func openLogWriter(logfile string) (wc io.WriteCloser, err error) {
 	// NOTE(lcooper): Closing stderr is generally considered a "bad thing".

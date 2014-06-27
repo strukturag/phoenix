@@ -1,17 +1,9 @@
 package phoenix
 
 import (
+	"io"
 	"log"
-
-	"code.google.com/p/goconf/conf"
 )
-
-// Config provides read access to the application's configuration.
-type Config interface {
-	GetBool(section string, option string) (bool, error)
-	GetInt(section string, option string) (int, error)
-	GetString(section string, option string) (string, error)
-}
 
 // Logger provides a log-only interface to the application Logger.
 //
@@ -45,17 +37,41 @@ type Container interface {
 
 type container struct {
 	name, version string
+	logwriter     io.WriteCloser
 	*log.Logger
-	*conf.ConfigFile
+	*config
 }
 
-func newContainer(name, version string, logger *log.Logger, configFile *conf.ConfigFile) *container {
+func newContainer(name, version string, logPath *string, config *config) (*container, error) {
+	if err := config.load(); err != nil {
+		return nil, err
+	}
+
+	var logfile string
+	if logPath == nil || *logPath == "" {
+		logfile, _ = config.GetString("log", "logfile")
+	} else {
+		logfile = *logPath
+	}
+
+	logwriter, err := openLogWriter(logfile)
+	if err != nil {
+		return nil, err
+	}
+
+	// Set the core logging package to log to our logwriter.
+	setSystemLogger(name, logwriter)
+
+	// And create our internal logger instance.
+	logger := makeLogger(name, logwriter)
+
 	return &container{
 		name,
 		version,
+		logwriter,
 		logger,
-		configFile,
-	}
+		config,
+	}, nil
 }
 
 func (container *container) Name() string {
@@ -70,4 +86,8 @@ func (container *container) Version() string {
 		return "unreleased"
 	}
 	return container.version
+}
+
+func (container *container) Close() error {
+	return container.logwriter.Close()
 }
