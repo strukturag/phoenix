@@ -33,13 +33,17 @@ type Reloadable interface {
 	Reload() error
 }
 
-// startHandler shall be considered undocumented until further notice.
-type startHandler interface {
+// StartHandler may be implemented by services which wish to be notified prior
+// to being started.
+type StartHandler interface {
+	// OnStart receives the current container, and may return an error to cancel
+	// startup.
 	OnStart(Container) error
 }
 
-// stopHandler shall be considered undocumented until further notice.
-type stopHandler interface {
+// StopHandler may be implemented by services which wish to be notified after
+// they stop.
+type StopHandler interface {
 	OnStop(Container)
 }
 
@@ -72,7 +76,7 @@ func (manager *serviceManager) Start() error {
 		go func(srv Service) {
 			defer running.Done()
 
-			if handler, ok := srv.(startHandler); ok {
+			if handler, ok := srv.(StartHandler); ok {
 				if err := handler.OnStart(manager); err != nil {
 					fail <- err
 					return
@@ -82,7 +86,7 @@ func (manager *serviceManager) Start() error {
 			if err := srv.Start(); err != nil {
 				manager.Printf("Error while listening %s\n", err)
 				fail <- err
-			} else if handler, ok := srv.(stopHandler); ok {
+			} else if handler, ok := srv.(StopHandler); ok {
 				handler.OnStop(manager)
 			}
 		}(service)
