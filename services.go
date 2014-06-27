@@ -4,6 +4,7 @@ import (
 	"errors"
 	"strings"
 	"sync"
+	"time"
 )
 
 // Service represents a resource whose lifecycle should be managed by a Runtime.
@@ -98,23 +99,61 @@ func (manager *serviceManager) Start() error {
 
 func (manager *serviceManager) Stop() error {
 	faults := &stopError{}
+	stopping := sync.WaitGroup{}
 	for _, service := range manager.services {
-		if err := service.Stop(); err != nil {
+		fault := make(chan error, 1)
+		stopping.Add(1)
+		go func() {
+			fault <- service.Stop()
+		}()
+
+		go func() {
+			defer stopping.Done()
+			var err error
+			select {
+			case err = <- fault:
+			case <- time.After(5 * time.Second):
+				err = errors.New("Timed out waiting for service to stop")
+			}
 			faults.AddError(err)
-		}
+		}()
 	}
+
+	stopping.Wait()
 	return faults.AsError()
 }
 
+func (manager *serviceManager) awaitStop(service Service) error {
+	fault := make(chan error)
+	go func() {
+		fault <- service.Stop()
+	}()
+
+	select {
+	case err := <- fault:
+		return err
+	case <- time.After(5 * time.Second):
+		return errors.New("Timed out waiting for service to stop")
+	}
+}
+
 type stopError struct {
+	sync.Mutex
 	errors []error
 }
 
 func (stop *stopError) AddError(err error) {
-	stop.errors = append(stop.errors, err)
+	if err != nil {
+		stop.Lock()
+		defer stop.Unlock()
+		stop.errors = append(stop.errors, err)
+	}
 }
 
 func (stop *stopError) Error() string {
+	stop.Lock()
+	defer stop.Unlock()
+
 	msgs := make([]string, 0, len(stop.errors))
 	for _, err := range stop.errors {
 		msgs = append(msgs, err.Error())
@@ -123,6 +162,9 @@ func (stop *stopError) Error() string {
 }
 
 func (stop *stopError) AsError() error {
+	stop.Lock()
+	defer stop.Unlock()
+
 	if len(stop.errors) == 0 {
 		return nil
 	}
