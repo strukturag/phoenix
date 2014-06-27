@@ -115,6 +115,7 @@ func (runtime *runtime) Run() (err error) {
 				runtime.Stop()
 				break Loop
 			case syscall.SIGHUP:
+				runtime.Printf("Got signal %d, reloading all services", s)
 				if err := runtime.Reload(); err != nil {
 					runtime.Printf("Error reloading services: %v", err)
 					runtime.Stop()

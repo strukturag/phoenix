@@ -112,7 +112,6 @@ func (manager *serviceManager) Reload() error {
 	}
 
 	failedToReload := &multiError{}
-	manager.Printf("Reloading configuration")
 	for _, service := range manager.services {
 		if reloadable, ok := service.(Reloadable); ok {
 			failedToReload.AddError(reloadable.Reload())
