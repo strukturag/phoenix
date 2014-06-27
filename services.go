@@ -124,7 +124,8 @@ func (manager *serviceManager) Reload() error {
 func (manager *serviceManager) Stop() error {
 	faults := &multiError{}
 	stopping := sync.WaitGroup{}
-	for _, service := range manager.services {
+	for i := len(manager.services) -1; i >=0; i-- {
+		service := manager.services[i]
 		fault := make(chan error, 1)
 		stopping.Add(1)
 		go func() {
