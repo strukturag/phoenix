@@ -6,9 +6,10 @@ import (
 
 // Config provides read access to the application's configuration.
 type Config interface {
-	GetBool(section string, option string) (bool, error)
-	GetInt(section string, option string) (int, error)
-	GetString(section string, option string) (string, error)
+	GetBool(section, option string) (bool, error)
+	GetInt(section, option string) (int, error)
+	GetFloat64(section, option string) (float64, error)
+	GetString(section, option string) (string, error)
 }
 
 type config struct {
