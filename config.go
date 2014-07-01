@@ -5,11 +5,19 @@ import (
 )
 
 // Config provides read access to the application's configuration.
+//
+// GetXXXDefault methods return dflt if the named option in section has no
+// value. Use HasOption to determine the status of an option thus defaulted.
 type Config interface {
+	HasOption(section, option string) bool
 	GetBool(section, option string) (bool, error)
+	GetBoolDefault(section, option string, dflt bool) bool
 	GetInt(section, option string) (int, error)
+	GetIntDefault(section, option string, dflt int) int
 	GetFloat64(section, option string) (float64, error)
+	GetFloat64Default(section, option string, dflt float64) float64
 	GetString(section, option string) (string, error)
+	GetStringDefault(section, option, dflt string) string
 }
 
 type config struct {
@@ -24,6 +32,34 @@ func newConfig() *config {
 		Defaults:  conf.NewConfigFile(),
 		Overrides: conf.NewConfigFile(),
 	}
+}
+
+func (config *config) GetBoolDefault(section, option string, dflt bool) bool {
+	if value, err := config.GetBool(section, option); err == nil {
+		return value
+	}
+	return dflt
+}
+
+func (config *config) GetIntDefault(section, option string, dflt int) int {
+	if value, err := config.GetInt(section, option); err == nil {
+		return value
+	}
+	return dflt
+}
+
+func (config *config) GetFloat64Default(section, option string, dflt float64) float64 {
+	if value, err := config.GetFloat64(section, option); err == nil {
+		return value
+	}
+	return dflt
+}
+
+func (config *config) GetStringDefault(section, option, dflt string) string {
+	if value, err := config.GetString(section, option); err == nil {
+		return value
+	}
+	return dflt
 }
 
 func (config *config) HasPath() bool {
