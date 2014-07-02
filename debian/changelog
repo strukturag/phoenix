@@ -1,3 +1,15 @@
+phoenix (0.12.0) precise; urgency=low
+
+  * Add support for fetching configuration values with a default.
+  * Expose getter for float64 config items.
+  * Support reloading configuration on SIGHUP.
+    Services which implement Reloadable will be notified on reload.
+  * Add support for handling start/stop of generic services.
+    Optional hook interfaces are provided for notification purposes.
+  * Improves HTTP(S) shutdown logging.
+
+ -- Lance Cooper <lance@struktur.de>  Tue, 01 Jul 2014 20:56:55 -0500
+
 phoenix (0.11.0) precise; urgency=low
 
   * Added HTTPS support.
