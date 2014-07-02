@@ -6,7 +6,7 @@ Build-Depends: debhelper (>= 8),
                dh-golang,
                golang-go (>= 1.1),
                golang-goconf-dev,
-               golang-httputils-dev
+               golang-httputils-dev (>= 0.1.2)
 Standards-Version: 3.9.3
 
 Package: golang-phoenix-dev
