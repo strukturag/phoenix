@@ -102,7 +102,7 @@ func (server *server) MemProfile(path *string) Server {
 
 func (server *server) Run(runFunc RunFunc) (err error) {
 	if server.currentRuntime != nil {
-		return fmt.Errorf("Server is already running")
+		return fmt.Errorf("server is already running")
 	}
 
 	container, err := newContainer(server.Name, server.Version, server.logPath, server.config)
@@ -144,7 +144,7 @@ func (server *server) Run(runFunc RunFunc) (err error) {
 
 			f, err := os.Create(cpuprofilepath)
 			if err != nil {
-				return fmt.Errorf("Failed to open CPU profile: %v", err)
+				return fmt.Errorf("failed to open CPU profile: %v", err)
 			}
 			return pprof.StartCPUProfile(f)
 		})
@@ -180,7 +180,7 @@ func (server *server) Run(runFunc RunFunc) (err error) {
 
 func (server *server) Stop() error {
 	if server.currentRuntime == nil {
-		return fmt.Errorf("Server is not currently running")
+		return fmt.Errorf("server is not currently running")
 	}
 
 	err := server.currentRuntime.Stop()

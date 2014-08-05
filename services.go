@@ -65,7 +65,7 @@ func (manager *serviceManager) AddService(service Service) {
 
 func (manager *serviceManager) Start() error {
 	if len(manager.services) <= 0 {
-		return errors.New("No services were registered")
+		return errors.New("no services were registered")
 	}
 
 	running := &sync.WaitGroup{}
@@ -142,7 +142,7 @@ func (manager *serviceManager) Stop() error {
 			select {
 			case err = <- fault:
 			case <- time.After(5 * time.Second):
-				err = errors.New("Timed out waiting for service to stop")
+				err = errors.New("timed out waiting for service to stop")
 			}
 			faults.AddError(err)
 		}()
@@ -162,7 +162,7 @@ func (manager *serviceManager) awaitStop(service Service) error {
 	case err := <- fault:
 		return err
 	case <- time.After(5 * time.Second):
-		return errors.New("Timed out waiting for service to stop")
+		return errors.New("timed out waiting for service to stop")
 	}
 }
 
