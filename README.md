@@ -1,5 +1,8 @@
 # Phoenix
 
+[![GoDoc](https://godoc.org/github.com/strukturag/phoenix?status.svg)](https://godoc.org/github.com/strukturag/phoenix)
+[![Build Status](https://travis-ci.org/strukturag/phoenix.png?branch=master)](https://travis-ci.org/strukturag/phoenix)
+
 ## Introduction
 Package phoenix provides runtime support for long running server processes.
 
