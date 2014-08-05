@@ -7,6 +7,7 @@ package phoenix
 import (
 	"fmt"
 	"io"
+	// Provide pprof support via the default servemux.
 	_ "net/http/pprof"
 	"os"
 	"path"
