@@ -151,9 +151,9 @@ func (runtime *runtime) Start() error {
 	for _, cb := range runtime.callbacks {
 		if err := cb.start(runtime); err != nil {
 			return err
-		} else {
-			stopCallbacks = append([]callback{cb}, stopCallbacks...)
 		}
+
+		stopCallbacks = append([]callback{cb}, stopCallbacks...)
 	}
 
 	return runtime.serviceManager.Start()
