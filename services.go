@@ -69,7 +69,7 @@ func (manager *serviceManager) Start() error {
 	}
 
 	running := &sync.WaitGroup{}
-	fail := make(chan error)
+	fail := make(chan error, len(manager.services))
 
 	for _, service := range manager.services {
 		running.Add(1)
@@ -98,16 +98,24 @@ func (manager *serviceManager) Start() error {
 		close(done)
 	}()
 
-	var err error
+	faults := &multiError{}
 	select {
 	case <-done:
-		// All ok.
-	case err = <-fail:
-		// At least one has failed.
-		close(fail)
+	case err := <-fail:
+		faults.AddError(err)
+		// NOTE(lcooper): We'll bail eventually, collect all errors first.
+	Loop:
+		for {
+			select {
+			case err := <-fail:
+				faults.AddError(err)
+			case <-time.After(500 * time.Millisecond):
+				break Loop
+			}
+		}
 	}
 
-	return err
+	return faults.AsError()
 }
 
 func (manager *serviceManager) Reload() error {
