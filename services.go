@@ -152,20 +152,6 @@ func (manager *serviceManager) Stop() error {
 	return faults.AsError()
 }
 
-func (manager *serviceManager) awaitStop(service Service) error {
-	fault := make(chan error)
-	go func() {
-		fault <- service.Stop()
-	}()
-
-	select {
-	case err := <- fault:
-		return err
-	case <- time.After(5 * time.Second):
-		return errors.New("timed out waiting for service to stop")
-	}
-}
-
 type multiError struct {
 	sync.Mutex
 	errors []error
