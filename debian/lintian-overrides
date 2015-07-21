@@ -1,3 +1,0 @@
-# Lintian doesn't know aboug section golang yet,
-# but this is fine since it's in debian and ubuntu next.
-golang-phoenix-dev: unknown-section golang
