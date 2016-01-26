@@ -1,7 +1,7 @@
 package phoenix
 
 import (
-	"code.google.com/p/goconf/conf"
+	conf "github.com/dlintw/goconf"
 )
 
 // Config provides read access to the application's configuration.
