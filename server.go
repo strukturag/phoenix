@@ -56,7 +56,7 @@ type Server interface {
 
 type server struct {
 	Name, Version          string
-	logPath *string
+	logPath                *string
 	cpuProfile, memProfile *string
 	currentRuntime         *runtime
 	*config

@@ -21,7 +21,7 @@ func newHTTPService(logger *log.Logger, handler http.Handler, addr string, readt
 			ReadTimeout:    time.Duration(readtimeout) * time.Second,
 			WriteTimeout:   time.Duration(writetimeout) * time.Second,
 			MaxHeaderBytes: 1 << 20,
-			TLSConfig: tlsConfig,
+			TLSConfig:      tlsConfig,
 		},
 		Logger: logger,
 	}

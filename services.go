@@ -136,7 +136,7 @@ func (manager *serviceManager) Reload() error {
 func (manager *serviceManager) Stop() error {
 	faults := &multiError{}
 	stopping := sync.WaitGroup{}
-	for i := len(manager.services) -1; i >=0; i-- {
+	for i := len(manager.services) - 1; i >= 0; i-- {
 		service := manager.services[i]
 		fault := make(chan error, 1)
 		stopping.Add(1)
@@ -148,8 +148,8 @@ func (manager *serviceManager) Stop() error {
 			defer stopping.Done()
 			var err error
 			select {
-			case err = <- fault:
-			case <- time.After(5 * time.Second):
+			case err = <-fault:
+			case <-time.After(5 * time.Second):
 				err = errors.New("timed out waiting for service to stop")
 			}
 			faults.AddError(err)

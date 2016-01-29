@@ -22,15 +22,15 @@ type Config interface {
 
 type config struct {
 	*conf.ConfigFile
-	path string
+	path                string
 	Defaults, Overrides *conf.ConfigFile
 }
 
 func newConfig() *config {
 	return &config{
 		ConfigFile: conf.NewConfigFile(),
-		Defaults:  conf.NewConfigFile(),
-		Overrides: conf.NewConfigFile(),
+		Defaults:   conf.NewConfigFile(),
+		Overrides:  conf.NewConfigFile(),
 	}
 }
 
