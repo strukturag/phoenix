@@ -12,15 +12,18 @@ import (
 	"sync"
 )
 
-
 func makeLogger(name string, w io.Writer) *log.Logger {
 	return log.New(w, name+" ", log.LstdFlags)
 }
 
 func setSystemLogger(name string, w io.Writer) {
 	log.SetOutput(w)
-	log.SetPrefix(name + " ")
-	log.SetFlags(log.LstdFlags)
+	if name != "" {
+		log.SetPrefix(name + " ")
+		log.SetFlags(log.LstdFlags)
+	} else {
+		log.SetFlags(log.LstdFlags &^ (log.Ldate | log.Ltime))
+	}
 }
 
 func openLogWriter(logfile string) (wc io.WriteCloser, err error) {

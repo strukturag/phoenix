@@ -3,6 +3,7 @@ package phoenix
 import (
 	"io"
 	"log"
+	"log/syslog"
 )
 
 // Logger provides a log-only interface to the application Logger.
@@ -37,14 +38,16 @@ type Container interface {
 
 type container struct {
 	name, version string
-	logwriter     io.WriteCloser
+	logwriter     io.Writer
 	*log.Logger
 	*config
 }
 
-func newContainer(name, version string, logPath *string, config *config) (*container, error) {
-	if err := config.load(); err != nil {
-		return nil, err
+func newContainer(name, version string, logPath *string, config *config) (result *container, err error) {
+	if config != nil {
+		if err := config.load(); err != nil {
+			return nil, err
+		}
 	}
 
 	var logfile string
@@ -54,16 +57,30 @@ func newContainer(name, version string, logPath *string, config *config) (*conta
 		logfile = *logPath
 	}
 
-	logwriter, err := openLogWriter(logfile)
-	if err != nil {
-		return nil, err
+	var logwriter io.Writer
+	var logger *log.Logger
+	if logfile == "syslog" {
+		logwriter, err = syslog.New(syslog.LOG_INFO|syslog.LOG_DAEMON, name)
+		if err != nil {
+			return nil, err
+		}
+
+		// Syslog automatically adds a the tag as prefix
+		setSystemLogger("", logwriter)
+
+		logger = log.New(logwriter, "", log.LstdFlags&^(log.Ldate|log.Ltime))
+	} else {
+		logwriter, err = openLogWriter(logfile)
+		if err != nil {
+			return nil, err
+		}
+
+		// Set the core logging package to log to our logwriter.
+		setSystemLogger(name, logwriter)
+
+		// And create our internal logger instance.
+		logger = makeLogger(name, logwriter)
 	}
-
-	// Set the core logging package to log to our logwriter.
-	setSystemLogger(name, logwriter)
-
-	// And create our internal logger instance.
-	logger := makeLogger(name, logwriter)
 
 	return &container{
 		name,
@@ -89,5 +106,8 @@ func (container *container) Version() string {
 }
 
 func (container *container) Close() error {
-	return container.logwriter.Close()
+	if closer, ok := container.logwriter.(io.WriteCloser); ok {
+		return closer.Close()
+	}
+	return nil
 }
