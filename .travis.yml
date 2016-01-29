@@ -17,6 +17,6 @@ install:
   - go get github.com/strukturag/httputils
   - go get -d -v ./... && go build -v ./...
 
-test:
+script:
   - ./tools/check-go-fmt.sh
   - go test -v ./...
