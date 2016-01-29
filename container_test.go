@@ -59,7 +59,7 @@ func Test_Container_Syslog(t *testing.T) {
 		return
 	}
 	if err := container.Close(); err != nil {
-		t.Errorf("Closing the syslog container returned '%s'", err)
+		t.Errorf("Closing the syslog container returned '%v'", err)
 	}
 	log.Println("Testing")
 	fp, err := os.Open(logFilename)
@@ -69,6 +69,6 @@ func Test_Container_Syslog(t *testing.T) {
 	if err == nil {
 		t.Errorf("Logging created a file '%s' but should have logged to syslog", logFilename)
 	} else if !os.IsNotExist(err) {
-		t.Errorf("Logfile '%s' could not be opened but should not exist: '%s'", logFilename, err)
+		t.Errorf("Logfile '%s' could not be opened but should not exist: '%v'", logFilename, err)
 	}
 }
