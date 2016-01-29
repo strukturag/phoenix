@@ -2,6 +2,8 @@
 # https://travis-ci.org/strukturag/phoenix/
 language: go
 
+sudo: false
+
 go:
   - 1.1
   - 1.2
