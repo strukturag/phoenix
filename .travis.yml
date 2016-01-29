@@ -16,3 +16,7 @@ install:
   - go get github.com/dlintw/goconf
   - go get github.com/strukturag/httputils
   - go get -d -v ./... && go build -v ./...
+
+test:
+  - ./tools/check-go-fmt.sh
+  - go test -v ./...
