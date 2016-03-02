@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// +build go1.5
+// +build go1.2,!go1.5
 
 package phoenix
 
@@ -32,8 +32,6 @@ func setTLSMinVersion(config Config, section string, tlsConfig *tls.Config) {
 func makeDefaultCipherSuites() []uint16 {
 	// Default cipher suites - no RC4.
 	return []uint16{
-		tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
-		tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
 		tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
 		tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
 		tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
