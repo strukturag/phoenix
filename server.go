@@ -86,6 +86,16 @@ func (server *server) Config(path *string) Server {
 	return server
 }
 
+func (server *server) DefaultConfig(path *string) Server {
+	server.config.SetDefaultPath(*path)
+	return server
+}
+
+func (server *server) OverrideConfig(path *string) Server {
+	server.config.SetOverridePath(*path)
+	return server
+}
+
 func (server *server) Log(path *string) Server {
 	server.logPath = path
 	return server

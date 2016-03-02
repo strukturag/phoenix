@@ -23,6 +23,8 @@ type Config interface {
 type config struct {
 	*conf.ConfigFile
 	path                string
+	defaultPath         string
+	overridePath        string
 	Defaults, Overrides *conf.ConfigFile
 }
 
@@ -74,6 +76,30 @@ func (config *config) SetPath(path string) {
 	config.path = path
 }
 
+func (config *config) HasDefaultPath() bool {
+	return config.defaultPath != ""
+}
+
+func (config *config) DefaultPath() string {
+	return config.defaultPath
+}
+
+func (config *config) SetDefaultPath(path string) {
+	config.defaultPath = path
+}
+
+func (config *config) HasOverridePath() bool {
+	return config.overridePath != ""
+}
+
+func (config *config) OverridePath() string {
+	return config.overridePath
+}
+
+func (config *config) SetOverridePath(path string) {
+	config.overridePath = path
+}
+
 func (config *config) DefaultOption(section, name, value string) {
 	config.Defaults.AddOption(section, name, value)
 }
@@ -90,6 +116,20 @@ func (config *config) load() (err error) {
 		}
 	} else {
 		config.ConfigFile = conf.NewConfigFile()
+	}
+	if config.HasDefaultPath() {
+		// Load defaults if a path was given.
+		config.Defaults, err = conf.ReadConfigFile(config.DefaultPath())
+		if err != nil {
+			return
+		}
+	}
+	if config.HasOverridePath() {
+		// Load overrides if a path was given.
+		config.Overrides, err = conf.ReadConfigFile(config.OverridePath())
+		if err != nil {
+			return
+		}
 	}
 
 	for _, section := range config.Defaults.GetSections() {
