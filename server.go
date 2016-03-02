@@ -32,6 +32,12 @@ type Server interface {
 	// Config sets the path to the application's main config file.
 	Config(path *string) Server
 
+	// DefaultConfig sets the path to the application's default config file.
+	DefaultConfig(path *string) Server
+
+	// OverrideConfig sets the path to the application's override config file.
+	OverrideConfig(path *string) Server
+
 	// Log sets the path to the application's logfile. Defaults to stderr if unset.
 	Log(path *string) Server
 
