@@ -11,11 +11,13 @@ import (
 )
 
 func setTLSMinVersion(config Config, section string, tlsConfig *tls.Config) {
-	// Default to SSL3.
-	minVersion := tls.VersionSSL30
+	// Default to TLSv1.2.
+	minVersion := tls.VersionTLS12
 	minVersionString, err := config.GetString(section, "minVersion")
 	if err == nil {
 		switch minVersionString {
+		case "SSLv3":
+			minVersion = tls.VersionSSL30
 		case "TLSv1":
 			minVersion = tls.VersionTLS10
 		case "TLSv1.1":
