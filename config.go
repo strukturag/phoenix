@@ -13,6 +13,9 @@ import (
 // GetXXXDefault methods return dflt if the named option in section has no
 // value. Use HasOption to determine the status of an option thus defaulted.
 type Config interface {
+	HasSection(section string) bool
+	GetSections() []string
+	GetOptions(section string) ([]string, error)
 	HasOption(section, option string) bool
 	GetBool(section, option string) (bool, error)
 	GetBoolDefault(section, option string, dflt bool) bool
