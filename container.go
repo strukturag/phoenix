@@ -35,7 +35,7 @@ type Metadata interface {
 //
 // Typically subinterfaces should be used when possible.
 type Container interface {
-	Config
+	ConfigUpdater
 	Logger
 	Metadata
 }
