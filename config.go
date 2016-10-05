@@ -27,6 +27,16 @@ type Config interface {
 	GetStringDefault(section, option, dflt string) string
 }
 
+// ConfigUpdater provides access to the applications's configuration and allows
+// to update it.
+//
+// Update method takes a string mapping like [section][option]=value. Sections
+// are automatically created as needed and existing values are overwritten.
+type ConfigUpdater interface {
+	Config
+	Update(map[string]map[string]string) error
+}
+
 type config struct {
 	*conf.ConfigFile
 	path                string
@@ -113,6 +123,16 @@ func (config *config) DefaultOption(section, name, value string) {
 
 func (config *config) OverrideOption(section, name, value string) {
 	config.Overrides.AddOption(section, name, value)
+}
+
+func (config *config) Update(updates map[string]map[string]string) error {
+	for section, options := range updates {
+		for option, value := range options {
+			config.ConfigFile.AddOption(section, option, value)
+		}
+	}
+
+	return nil
 }
 
 func (config *config) load() (err error) {
