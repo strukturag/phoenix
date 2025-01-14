@@ -2,18 +2,16 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package phoenix_test
+package phoenix
 
 import (
 	"os"
 	"os/signal"
 	"testing"
 	"time"
-
-	phoenix "."
 )
 
-func withTestServer(t *testing.T, server phoenix.Server, runFunc phoenix.RunFunc, runTest func()) {
+func withTestServer(t *testing.T, server Server, runFunc RunFunc, runTest func()) {
 	self, err := os.FindProcess(os.Getpid())
 	if err != nil {
 		t.Fatalf("Failed to get process handle for self: %v", err)

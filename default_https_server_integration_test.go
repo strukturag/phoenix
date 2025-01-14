@@ -2,22 +2,20 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package phoenix_test
+package phoenix
 
 import (
 	"crypto/tls"
 	"io/ioutil"
 	"net/http"
 	"testing"
-
-	phoenix "."
 )
 
 var okHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("ok"))
 })
 
-func simpleTLSRunFunc(runtime phoenix.Runtime) error {
+func simpleTLSRunFunc(runtime Runtime) error {
 	runtime.DefaultHTTPSHandler(okHandler)
 	return runtime.Start()
 }
@@ -27,7 +25,7 @@ func Test_Server_DefaultTLSServer_IsConnectableAfterStartup(t *testing.T) {
 	// than generating a cert with an IP SAN. If this changes, feel free
 	// to use 127.0.0.1 instead.
 	baseURL := "localhost:62001"
-	server := phoenix.NewServer("integration-test", "unreleased").
+	server := NewServer("integration-test", "unreleased").
 		OverrideOption("https", "listen", baseURL).
 		OverrideOption("https", "certificate", "testdata/server.crt").
 		OverrideOption("https", "key", "testdata/key.pem")
